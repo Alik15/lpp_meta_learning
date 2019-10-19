@@ -66,14 +66,18 @@ def extract_plp_from_dt(estimator, features, feature_log_probs):
     while len(stack) > 0:
         node_id = stack.pop()
 
-        if (children_left[node_id] != children_right[node_id]):
-            assert 0 < threshold[node_id] < 1
-            stack.append(children_left[node_id])
-            parents[children_left[node_id]] = (node_id, 'left')
-            stack.append(children_right[node_id])
-            parents[children_right[node_id]] = (node_id, 'right')
-        elif value[node_id][1] > value[node_id][0]:
-            true_leaves.append(node_id)
+        try:
+            if (children_left[node_id] != children_right[node_id]):
+                assert 0 < threshold[node_id] < 1
+                stack.append(children_left[node_id])
+                parents[children_left[node_id]] = (node_id, 'left')
+                stack.append(children_right[node_id])
+                parents[children_right[node_id]] = (node_id, 'right')
+            elif value[node_id][1] > value[node_id][0]:
+                true_leaves.append(node_id)
+        except IndexError:
+            if value[1] > value[0]:
+                true_leaves.append(node_id)
 
     paths_to_true_leaves = [get_path_to_leaf(leaf, parents) for leaf in true_leaves]
 
