@@ -387,23 +387,10 @@ def test(base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
     
     # probability-learning parameters
     iters = 10
-    start_probs = {
-            "at_cell_with_value": 0.5,
-            "at_action_cell": 0.5,
-        }
-    local_program_probs = {
-            "condition": 0.5,
-            "shifted": 0.5
-        }
-    condition_probs = {
-            "cell_is_value": 0.5,
-            "scanning": 0.5
-        }
+
     object_types = get_object_types(base_class_name)
-    value_probs = {
-            object_type: 1.0/len(object_types) for object_type in object_types
-        }
-    probs_dicts = [start_probs, local_program_probs, condition_probs, value_probs]
+    grammar_regex = get_grammar_regex(object_types)
+    probs_dicts = [{regex: 1./len(level_regex) for regex in level_regex} for level_regex in grammar_regex.values()]
 
     accuracies = []
     for i in range(iters):
@@ -425,7 +412,6 @@ def test(base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
             # update probabilities
             # TODO: figure out relation to result (difference between envs)
             plps = str(policy.plps)
-            print(plps)
             for probs_dict in probs_dicts:
                 probs_dict.update(update_probs(plps, probs_dict))
         
