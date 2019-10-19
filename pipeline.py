@@ -392,8 +392,8 @@ def test(base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
             "at_action_cell": 0.5,
         }
     local_program_probs = {
-            "condition": 0.5
-            "shifted": 0.5,
+            "condition": 0.5,
+            "shifted": 0.5
         }
     condition_probs = {
             "cell_is_value": 0.5,
