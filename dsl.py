@@ -5,6 +5,9 @@ import numpy as np
 def out_of_bounds(r, c, shape):
     return (r < 0 or c < 0 or r >= shape[0] or c >= shape[1])
 
+def condition(local_program, cell, obs):
+    return local_program(cell, obs)
+
 def shifted(direction, local_program, cell, obs):
     if cell is None:
         new_cell = None
@@ -55,17 +58,17 @@ def scanning(direction, true_condition, false_condition, cell, obs, max_timeout=
 ### Grammatical Prior
 START, CONDITION, LOCAL_PROGRAM, DIRECTION, POSITIVE_NUM, NEGATIVE_NUM, VALUE = range(7)
 
-def create_grammar(object_types):
+def create_grammar(object_types, feature_probs):
     grammar = {
         START : ([['at_cell_with_value(', VALUE, ',', LOCAL_PROGRAM, ', s)'],
                   ['at_action_cell(', LOCAL_PROGRAM, ', a, s)']],
-                  [0.5, 0.5]),
-        LOCAL_PROGRAM : ([[CONDITION],
+                  [feature_probs['at_cell_with_value'], feature_probs['at_action_cell']]),
+        LOCAL_PROGRAM : ([['lambda cell,o : condition(', CONDITION, ', cell, o)'],
                           ['lambda cell,o : shifted(', DIRECTION, ',', CONDITION, ', cell, o)']],
-                          [0.5, 0.5]),
+                          [feature_probs['condition'], feature_probs['shifted']]),
         CONDITION : ([['lambda cell,o : cell_is_value(', VALUE, ', cell, o)'],
                       ['lambda cell,o : scanning(', DIRECTION, ',', LOCAL_PROGRAM, ',', LOCAL_PROGRAM, ', cell, o)']],
-                      [0.5, 0.5]),
+                      [feature_probs['cell_is_value'], feature_probs['scanning']]),
         DIRECTION : ([['(', POSITIVE_NUM, ', 0)'], ['(0,', POSITIVE_NUM, ')'],
                       ['(', NEGATIVE_NUM, ', 0)'], ['(0,', NEGATIVE_NUM, ')'],
                       ['(', POSITIVE_NUM, ',', POSITIVE_NUM, ')'], ['(', NEGATIVE_NUM, ',', POSITIVE_NUM, ')'],
@@ -76,7 +79,7 @@ def create_grammar(object_types):
         NEGATIVE_NUM : ([['-1'], [NEGATIVE_NUM, '-1']],
                          [0.99, 0.01]),
         VALUE : (object_types, 
-                 [1./len(object_types) for _ in object_types])
+                 [feature_probs[object_type] for object_type in object_types])
     }
     return grammar
     

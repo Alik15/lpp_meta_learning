@@ -13,6 +13,7 @@ from sklearn.tree import DecisionTreeClassifier
 from scipy.special import logsumexp
 from scipy.sparse import csr_matrix, lil_matrix, vstack
 
+import re
 import gym
 import multiprocessing
 import numpy as np
@@ -22,8 +23,8 @@ import os
 cache_dir = 'cache'
 
 
-@manage_cache(cache_dir, ['.pkl', '.pkl'])
-def get_program_set(base_class_name, num_programs):
+#@manage_cache(cache_dir, ['.pkl', '.pkl'])
+def get_program_set(base_class_name, num_programs, feature_probs):
     """
     Enumerate all programs up to a certain iteration.
 
@@ -40,7 +41,7 @@ def get_program_set(base_class_name, num_programs):
         Log probabilities for each program.
     """
     object_types = get_object_types(base_class_name)
-    grammar = create_grammar(object_types)
+    grammar = create_grammar(object_types, feature_probs)
 
     program_generator = generate_programs(grammar)
     programs = []
@@ -133,8 +134,8 @@ def apply_programs(programs, fn_input):
         x.append(x_i)
     return x
 
-@manage_cache(cache_dir, ['.npz', '.pkl'])
-def run_all_programs_on_single_demonstration(base_class_name, num_programs, demo_number, program_interval=1000):
+#@manage_cache(cache_dir, ['.npz', '.pkl'])
+def run_all_programs_on_single_demonstration(base_class_name, num_programs, demo_number, feature_probs, program_interval=1000):
     """
     Run all programs up to some iteration on one demonstration.
 
@@ -164,7 +165,7 @@ def run_all_programs_on_single_demonstration(base_class_name, num_programs, demo
 
     print("Running all programs on {}, {}".format(base_class_name, demo_number))
 
-    programs, _ = get_program_set(base_class_name, num_programs)
+    programs, _ = get_program_set(base_class_name, num_programs, feature_probs)
 
     demonstration = get_demonstrations(base_class_name, demo_numbers=(demo_number,))
     positive_examples, negative_examples = extract_examples_from_demonstration(demonstration)
@@ -197,14 +198,14 @@ def run_all_programs_on_single_demonstration(base_class_name, num_programs, demo
     print()
     return X, y
 
-def run_all_programs_on_demonstrations(base_class_name, num_programs, demo_numbers):
+def run_all_programs_on_demonstrations(base_class_name, num_programs, demo_numbers, feature_probs):
     """
     See run_all_programs_on_single_demonstration.
     """
     X, y = None, None
 
     for demo_number in demo_numbers:
-        demo_X, demo_y = run_all_programs_on_single_demonstration(base_class_name, num_programs, demo_number)
+        demo_X, demo_y = run_all_programs_on_single_demonstration(base_class_name, num_programs, demo_number, feature_probs)
 
         if X is None:
             X = demo_X
@@ -338,11 +339,11 @@ def select_particles(particles, particle_log_probs, max_num_particles):
         pass
     return sorted_particles[:end], sorted_log_probs[:end]
 
-@manage_cache(cache_dir, '.pkl')
-def train(base_class_name, demo_numbers, program_generation_step_size, num_programs, num_dts, max_num_particles):
-    programs, program_prior_log_probs = get_program_set(base_class_name, num_programs)
+#@manage_cache(cache_dir, '.pkl')
+def train(base_class_name, demo_numbers, program_generation_step_size, num_programs, num_dts, max_num_particles, feature_probs):
+    programs, program_prior_log_probs = get_program_set(base_class_name, num_programs, feature_probs)
 
-    X, y = run_all_programs_on_demonstrations(base_class_name, num_programs, demo_numbers)
+    X, y = run_all_programs_on_demonstrations(base_class_name, num_programs, demo_numbers, feature_probs)
     plps, plp_priors = learn_plps(X, y, programs, program_prior_log_probs, num_dts=num_dts,
         program_generation_step_size=program_generation_step_size)
 
@@ -374,21 +375,70 @@ def train(base_class_name, demo_numbers, program_generation_step_size, num_progr
     return policy
 
 ## Test (given subset of environments)
-def test(policy, base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
+def test(base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
          record_videos=True, video_format='mp4'):
-    
-    env_names = ['{}{}-v0'.format(base_class_name, i) for i in test_env_nums]
-    envs = [gym.make(env_name) for env_name in env_names]
-    accuracies = []
-    for env in envs:
-        video_out_path = '/tmp/lfd_{}.{}'.format(env.__class__.__name__, video_format)
-        result = run_single_episode(env, policy, max_num_steps=max_num_steps, 
-            record_video=record_videos, video_out_path=video_out_path) > 0
-        accuracies.append(result)
 
+    # parameters to train() based on game
+    program_generation_step_size = 10
+    num_programs = 1000
+    if base_class_name is "TwoPileNim":
+        program_generation_step_size = 1
+        num_programs = 250
+    
+    # probability-learning parameters
+    iters = 10
+    start_probs = {
+            "at_cell_with_value": 0.5,
+            "at_action_cell": 0.5,
+        }
+    local_program_probs = {
+            "condition": 0.5
+            "shifted": 0.5,
+        }
+    condition_probs = {
+            "cell_is_value": 0.5,
+            "scanning": 0.5
+        }
+    object_types = get_object_types(base_class_name)
+    value_probs = {
+            object_type: 1.0/len(object_types) for object_type in object_types
+        }
+    probs_dicts = [start_probs, local_program_probs, condition_probs, value_probs]
+
+    accuracies = []
+    for i in range(iters):
+        probs = {k: v for d in probs_dicts for k, v in d.items()}
+        print("Probs:", probs)
+        
+        policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
+        
+        env_names = ['{}{}-v0'.format(base_class_name, i) for i in test_env_nums]
+        envs = [gym.make(env_name) for env_name in env_names]
+        
+        for env in envs:
+            video_out_path = '/tmp/lfd_{}.{}'.format(env.__class__.__name__, video_format)
+            
+            result = run_single_episode(env, policy, max_num_steps=max_num_steps, 
+                record_video=record_videos, video_out_path=video_out_path) > 0
+            accuracies.append(result)
+
+            # update probabilities
+            # TODO: figure out relation to result (difference between envs)
+            plps = str(policy.plps)
+            print(plps)
+            for probs_dict in probs_dicts:
+                probs_dict.update(update_probs(plps, probs_dict))
+        
     return accuracies
 
+def update_probs(plps, probs_dict):
+    for feature in probs_dict:
+        probs_dict[feature] = 1.0 * len(re.findall(feature, plps))
+    return counts_to_probs(probs_dict)
+
+def counts_to_probs(counts):
+    return {key: counts[key] / sum(counts.values()) for key in counts}
+
 if __name__  == "__main__":
-    policy = train("TwoPileNim", range(11), 1, 250, 5, 25)
-    test_results = test(policy, "TwoPileNim", range(11, 20), record_videos=True)
+    test_results = test("TwoPileNim", range(11, 20), record_videos=False)
     print("Test results:", test_results)
