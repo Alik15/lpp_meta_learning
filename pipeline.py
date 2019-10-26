@@ -6,6 +6,7 @@ from dt_utils import extract_plp_from_dt
 from expert_demonstrations import get_demonstrations
 from policy import StateActionProgram, PLPPolicy
 from utils import run_single_episode
+from upweighting_probs import *
 
 from collections import defaultdict
 from functools import partial
@@ -375,56 +376,31 @@ def train(base_class_name, demo_numbers, program_generation_step_size, num_progr
     return policy
 
 ## Test (given subset of environments)
-def test(base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
+def test(policy, base_class_name, test_env_nums=range(11, 20), max_num_steps=50,
          record_videos=True, video_format='mp4'):
+    
+    env_names = ['{}{}-v0'.format(base_class_name, i) for i in test_env_nums]
+    envs = [gym.make(env_name) for env_name in env_names]
+    accuracies = []
+    for env in envs:
+        video_out_path = '/tmp/lfd_{}.{}'.format(env.__class__.__name__, video_format)
+        result = run_single_episode(env, policy, max_num_steps=max_num_steps, 
+            record_video=record_videos, video_out_path=video_out_path) > 0
+        accuracies.append(result)
+
+    return accuracies
+
+if __name__  == "__main__":
+    base_class_name = str(sys.argv[1])
 
     # parameters to train() based on game
     program_generation_step_size = 10
     num_programs = 1000
-    if base_class_name is "TwoPileNim":
+    if base_class_name == "TwoPileNim":
         program_generation_step_size = 1
         num_programs = 250
-    
-    # probability-learning parameters
-    iters = 10
 
-    object_types = get_object_types(base_class_name)
-    grammar_regex = get_grammar_regex(object_types)
-    probs_dicts = [{regex: 1./len(level_regex) for regex in level_regex} for level_regex in grammar_regex.values()]
-
-    accuracies = []
-    for i in range(iters):
-        probs = {k: v for d in probs_dicts for k, v in d.items()}
-        print("Probs:", probs)
-        
-        policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
-        
-        env_names = ['{}{}-v0'.format(base_class_name, i) for i in test_env_nums]
-        envs = [gym.make(env_name) for env_name in env_names]
-        
-        for env in envs:
-            video_out_path = '/tmp/lfd_{}.{}'.format(env.__class__.__name__, video_format)
-            
-            result = run_single_episode(env, policy, max_num_steps=max_num_steps, 
-                record_video=record_videos, video_out_path=video_out_path) > 0
-            accuracies.append(result)
-
-            # update probabilities
-            # TODO: figure out relation to result (difference between envs)
-            plps = str(policy.plps)
-            for probs_dict in probs_dicts:
-                probs_dict.update(update_probs(plps, probs_dict))
-        
-    return accuracies
-
-def update_probs(plps, probs_dict):
-    for feature in probs_dict:
-        probs_dict[feature] = 1.0 * len(re.findall(feature, plps))
-    return counts_to_probs(probs_dict)
-
-def counts_to_probs(counts):
-    return {key: counts[key] / sum(counts.values()) for key in counts}
-
-if __name__  == "__main__":
-    test_results = test("TwoPileNim", range(11, 20), record_videos=False)
+    probs = learn_probs(base_class_name, program_generation_step_size, num_programs)
+    policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
+    test_results = test(policy, base_class_name, range(11, 20), record_videos=True)
     print("Test results:", test_results)

@@ -61,6 +61,21 @@ def scanning(direction, true_condition, false_condition, cell, obs, max_timeout=
 ### Grammatical Prior
 START, CONDITION, LOCAL_PROGRAM, DIRECTION, POSITIVE_NUM, NEGATIVE_NUM, VALUE = range(7)
 
+def get_grammar_labels(object_types):
+    labels = {
+        START : ('at_cell_with_value', 'at_action_cell', 'test_program'),
+        LOCAL_PROGRAM : ('condition', 'shifted'),
+        CONDITION : ('cell_is_value', 'scanning'),
+        DIRECTION : ('(N , 0)', '(0, N)',
+                     '(-N , 0)', '(0, -N)',
+                     '(N , N)', '(-N , N)',
+                     '(N , -N)', '(-N , -N)'),
+        POSITIVE_NUM : ('1',  'N'),
+        NEGATIVE_NUM : ('-1', '-N'),
+        VALUE : tuple(object_types)
+    }
+    return regex
+
 def get_grammar_regex(object_types):
     pos_int_regex = '[1-9]\d*'
     neg_int_regex = '-' + pos_int_regex
@@ -87,22 +102,22 @@ def create_grammar(object_types, feature_probs):
         START : ([['at_cell_with_value(', VALUE, ',', LOCAL_PROGRAM, ', s)'],
                   ['at_action_cell(', LOCAL_PROGRAM, ', a, s)'],
                   ['test_program()']],
-                  [feature_probs[regex] for regex in grammar_regex[START]]),
+                 [feature_probs[regex] for regex in grammar_regex[START]]),
         LOCAL_PROGRAM : ([['lambda cell,o : condition(', CONDITION, ', cell, o)'],
                           ['lambda cell,o : shifted(', DIRECTION, ',', CONDITION, ', cell, o)']],
-                          [feature_probs[regex] for regex in grammar_regex[LOCAL_PROGRAM]]),
+                         [feature_probs[regex] for regex in grammar_regex[LOCAL_PROGRAM]]),
         CONDITION : ([['lambda cell,o : cell_is_value(', VALUE, ', cell, o)'],
                       ['lambda cell,o : scanning(', DIRECTION, ',', LOCAL_PROGRAM, ',', LOCAL_PROGRAM, ', cell, o)']],
-                      [feature_probs[regex] for regex in grammar_regex[CONDITION]]),
+                     [feature_probs[regex] for regex in grammar_regex[CONDITION]]),
         DIRECTION : ([['(', POSITIVE_NUM, ', 0)'], ['(0,', POSITIVE_NUM, ')'],
                       ['(', NEGATIVE_NUM, ', 0)'], ['(0,', NEGATIVE_NUM, ')'],
                       ['(', POSITIVE_NUM, ',', POSITIVE_NUM, ')'], ['(', NEGATIVE_NUM, ',', POSITIVE_NUM, ')'],
                       ['(', POSITIVE_NUM, ',', NEGATIVE_NUM, ')'], ['(', NEGATIVE_NUM, ',', NEGATIVE_NUM, ')']],
                      [feature_probs[regex] for regex in grammar_regex[DIRECTION]]),
         POSITIVE_NUM : ([['1'], [POSITIVE_NUM, '+1']],
-                         [feature_probs[regex] for regex in grammar_regex[POSITIVE_NUM]]),
+                        [feature_probs[regex] for regex in grammar_regex[POSITIVE_NUM]]),
         NEGATIVE_NUM : ([['-1'], [NEGATIVE_NUM, '-1']],
-                         [feature_probs[regex] for regex in grammar_regex[NEGATIVE_NUM]]),
+                        [feature_probs[regex] for regex in grammar_regex[NEGATIVE_NUM]]),
         VALUE : (object_types, 
                  [feature_probs[regex] for regex in grammar_regex[VALUE]])
     }
