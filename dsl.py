@@ -74,6 +74,20 @@ def get_grammar_labels(object_types):
         NEGATIVE_NUM : ('-1', '-N'),
         VALUE : tuple(object_types)
     }
+    return labels
+
+def get_initial_probs(object_types):
+    grammar_regex = get_grammar_regex(object_types)
+
+    regex = {
+        START : [1./len(grammar_regex[START]) for _ in grammar_regex[START]],
+        LOCAL_PROGRAM : [1./len(grammar_regex[LOCAL_PROGRAM]) for _ in grammar_regex[LOCAL_PROGRAM]],
+        CONDITION : [1./len(grammar_regex[CONDITION]) for _ in grammar_regex[CONDITION]],
+        DIRECTION : [1./len(grammar_regex[DIRECTION]) for _ in grammar_regex[DIRECTION]],
+        POSITIVE_NUM : [0.99, 0.01],
+        NEGATIVE_NUM : [0.99, 0.01],
+        VALUE : [1./len(grammar_regex[VALUE]) for _ in grammar_regex[VALUE]],
+    }
     return regex
 
 def get_grammar_regex(object_types):

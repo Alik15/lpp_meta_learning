@@ -5,36 +5,78 @@ from pipeline import *
 import re
 import sys
 
-def learn_probs(base_class_name, program_generation_step_size, num_programs, iters = 10):
+import matplotlib.pyplot as plt
+
+def learn_probs(base_class_name, program_generation_step_size, num_programs,
+            iters = 10, epsilon = 1, plot = False):
     # initialize blank probability dictionary
     object_types = get_object_types(base_class_name)
     grammar_regex = get_grammar_regex(object_types)
-    probs_dicts = [{regex: 1./len(level_regex) for regex in level_regex} for level_regex in grammar_regex.values()]
+    initial_probs = get_initial_probs(object_types)
+    probs_dicts = [{grammar_regex[level][i]: initial_probs[level][i] for i in range(len(grammar_regex[level]))} for level in grammar_regex]
+    probs = {k: v for d in probs_dicts for k, v in d.items()}
+    print("Initial probs:", probs)
 
-    probs = {}
+    if plot:
+        test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)
+        plt.title("Meta-Learning Improvement for " + base_class_name + " (initial)")
+        plt.show()
+
     for i in range(iters):
-        updated_probs = {k: v for d in probs_dicts for k, v in d.items()}
-        print("Probs:", updated_probs)
-        if probs == updated_probs: # if converged
-            break
-        probs = updated_probs
-        
+        print("RUNNING META-LEARNING IERATION", int(i), "OF", int(iters))
+        # train a new policy with given probs
         policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
         
         # update probabilities
         plps = str(policy.plps)
         for probs_dict in probs_dicts:
-            probs_dict.update(update_probs(plps, probs_dict))
+            probs_dict.update(adjust(probs_dict, update_probs(plps, probs_dict), epsilon = epsilon))
+        probs = {k: v for d in probs_dicts for k, v in d.items()}
+        print("Updated probs:", probs)
 
+        if plot:
+            test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)
+            plt.title("Meta-Learning Improvement for " + base_class_name + " (iteration " + str(i + 1) + ")")
+            plt.show()
+
+    print("Final probs:", probs)
     return probs
 
+def test_num_programs(base_class_name, program_generation_step_size, max_num_programs, probs, alpha = 1):
+    x = list(range(program_generation_step_size, max_num_programs + program_generation_step_size, program_generation_step_size))
+    y = []
+    for num_programs in x:
+        print("Testing with", num_programs, "programs")
+        blockPrint()
+        policy = train(base_class_name, range(11), program_generation_step_size, num_programs + program_generation_step_size, 5, 25, probs)
+        results = test(policy, base_class_name, record_videos = False)
+        fraction = results.count(True) * 1./len(results)
+        y += [fraction]
+        enablePrint()
+    plt.plot(x, y, color = 'b', alpha = alpha)
+    plt.xlabel("# features enumerated")
+    plt.ylabel("Test success fraction")
+
+def adjust(old, new, epsilon = 0.7):
+    adjusted = {}
+    for k in old:
+        adjusted[k] = (1 - epsilon) * old[k] + epsilon * new[k]
+    return adjusted
+
 def update_probs(plps, probs_dict):
+    counts_dict = {}
     for feature in probs_dict:
-        probs_dict[feature] = 1.0 * len(re.findall(feature, plps))
-    return counts_to_probs(probs_dict)
+        counts_dict[feature] = 1.0 * len(re.findall(feature, plps))
+    return counts_to_probs(counts_dict)
 
 def counts_to_probs(counts):
     return {key: counts[key] / sum(counts.values()) for key in counts}
+
+def blockPrint():
+    sys.stdout = open(os.devnull, 'w')
+
+def enablePrint():
+    sys.stdout = sys.__stdout__
 
 if __name__  == "__main__":
     base_class_name = str(sys.argv[1])
