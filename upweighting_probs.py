@@ -20,12 +20,15 @@ def learn_probs(base_class_name, program_generation_step_size, num_programs,
     if plot:
         test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)
         plt.title("Meta-Learning Improvement for " + base_class_name + " (initial)")
-        plt.show()
+        plt.savefig(base_class_name + "_initial.png")
 
     for i in range(iters):
-        print("RUNNING META-LEARNING IERATION", int(i), "OF", int(iters))
+        print("RUNNING META-LEARNING IERATION", i + 1, "OF", iters)
+
         # train a new policy with given probs
         policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
+        results = test(policy, base_class_name, record_videos = False)
+        print("Test results:", results)
         
         # update probabilities
         plps = str(policy.plps)
@@ -35,16 +38,19 @@ def learn_probs(base_class_name, program_generation_step_size, num_programs,
         print("Updated probs:", probs)
 
         if plot:
-            test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)
-            plt.title("Meta-Learning Improvement for " + base_class_name + " (iteration " + str(i + 1) + ")")
-            plt.show()
+            test_num_programs(base_class_name, program_generation_step_size, num_programs, probs, iteration = str(i + 1))
 
     print("Final probs:", probs)
     return probs
 
-def test_num_programs(base_class_name, program_generation_step_size, max_num_programs, probs, alpha = 1):
+def test_num_programs(base_class_name, program_generation_step_size, max_num_programs, probs, iteration = False, alpha = 1):
+    plt.clf() # clear figure
+
+    # initialize data lists
     x = list(range(program_generation_step_size, max_num_programs + program_generation_step_size, program_generation_step_size))
     y = []
+
+    # test for every num_programs
     for num_programs in x:
         print("Testing with", num_programs, "programs")
         blockPrint()
@@ -53,9 +59,14 @@ def test_num_programs(base_class_name, program_generation_step_size, max_num_pro
         fraction = results.count(True) * 1./len(results)
         y += [fraction]
         enablePrint()
+    
+    # plot the data
     plt.plot(x, y, color = 'b', alpha = alpha)
     plt.xlabel("# features enumerated")
     plt.ylabel("Test success fraction")
+    if iteration:
+        plt.title("Meta-Learning Improvement for " + base_class_name + " (iteration " + iteration + ")")
+        plt.savefig(base_class_name + "_" + iteration + ".png")
 
 def adjust(old, new, epsilon = 0.7):
     adjusted = {}
