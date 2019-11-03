@@ -45,31 +45,46 @@ def plot_heatmap(data, xticklabels, yticklabels, layers, title):
 		end_index = start_index + num_features
 		dataframe = pd.DataFrame(data[start_index : end_index])
 
+		# determine label booleans
+		first_layer = i == 0 # title = Nim, xaxis = top, xaxis = 'Programs'
+		middle_layer = i == 3 # title = label, xaxis = None
+		last_layer = i == len(layers) - 1 # title = label, xaxis = 'Iters'
+
+		# initialize subplot
+		axes = plt.subplot(gs[i])
+
 		# plot heatmap for layer
 		plot_layer_heatmap(dataframe,
-			gs[i], # subplot_params
-			title if i == 0 else '', # title
-			layer_name,
-			num_features,
-			'DSL Feature' if i == 3 else '', # ylabel
-			xticklabels if i == len(layers) - 1 else [], # xticklabels
+			xticklabels if last_layer else [], # xticklabels
 			yticklabels[start_index : end_index]) # yticklabels
+
+		set_plot_labels(axes,
+			title, 
+			'Iterations of Meta-Learning', # xlabel
+			'DSL Feature', # ylabel
+			layer_name,
+			first_layer, middle_layer, last_layer)
 
 		start_index = end_index
 
-def plot_layer_heatmap(dataframe, subplot_params, title, layer_name, num_features, ylabel, xticklabels, yticklabels):
-	# set up subplot
-	ax = plt.subplot(subplot_params)
-	ax.xaxis.set_label_position('top')
-	
-	# plot layer heatmap
-	g = sns.heatmap(dataframe, annot = False, square = True, xticklabels = xticklabels, yticklabels = yticklabels, cbar = False)
+def plot_layer_heatmap(dataframe, xticklabels, yticklabels):
+	g = sns.heatmap(dataframe,
+		annot = False, square = True,
+		xticklabels = xticklabels, yticklabels = yticklabels,
+		cbar = False)
 	g.set_yticklabels(g.get_yticklabels(), rotation = 0)
-	
-	# set heatmap plot labels
-	plt.title(title, pad = 30)
-	plt.xlabel(layer_name)
-	plt.ylabel(ylabel, labelpad = 60)
+
+def set_plot_labels(axes, title, xlabel, ylabel, layer_name, first_layer, middle_layer, last_layer):
+	if first_layer: # title is plot title, xlabel is layer name
+		plt.title(title, pad = 30)
+		axes.xaxis.set_label_position('top')
+		plt.xlabel(layer_name)
+	elif last_layer: # title is layer name, xlabel is plot xlabel
+		plt.title(layer_name, pad = 4, fontsize = 10)
+		plt.xlabel(xlabel)
+	else: # title is layer name, ylabel is plot ylabel
+		plt.title(layer_name, pad = 4, fontsize = 10)
+		plt.ylabel(ylabel if middle_layer else '', labelpad = 70)
 
 if __name__  == "__main__":
     minigame = str(sys.argv[1])
