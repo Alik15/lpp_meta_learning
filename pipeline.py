@@ -400,7 +400,7 @@ if __name__  == "__main__":
         program_generation_step_size = 1
         num_programs = 250
 
-    probs = learn_probs(base_class_name, program_generation_step_size, num_programs, epsilon = 1, plot = False)
+    probs = learn_probs(base_class_name, program_generation_step_size, num_programs, epsilon = 1, analyze_improvement = True)
     policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
     test_results = test(policy, base_class_name, range(11, 20), record_videos=True)
     print("Test results:", test_results)
