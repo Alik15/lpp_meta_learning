@@ -23,7 +23,7 @@ def learn_probs(base_class_name, program_generation_step_size, num_programs,
         improvement_results = [test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)]
 
     for i in range(iters):
-        print("RUNNING META-LEARNING IERATION", i + 1, "OF", iters)
+        print("RUNNING META-LEARNING ITERATION", i + 1, "OF", iters)
 
         # train a new policy with given probs
         policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
