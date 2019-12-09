@@ -10,14 +10,14 @@ import matplotlib.pyplot as plt
 
 def parse_data(filename):
 	# read input file
-	data = np.array(pd.read_csv(filename + '.csv')) # read input file
+	data = np.array(pd.read_csv(filename + '.csv', header = None)) # read input file
 
 	# determine number of meta-learning iterations and feature names
-	iters = list(range(len(data[0]) - 1))
-	features = [row[0] for row in data]
+	iters = [int(i) for i in data[0][1:]]
+	features = [row[0] for row in data[1:]]
 
 	# eliminate column of feature names from data
-	data = np.array([row[1:] for row in data], dtype=float)
+	data = np.array([row[1:] for row in data[1:]], dtype=float)
 
 	return iters, features, data
 
@@ -60,7 +60,7 @@ def plot_heatmap(data, xticklabels, yticklabels, layers, title):
 
 		set_plot_labels(axes,
 			title, 
-			'Iterations of Meta-Learning', # xlabel
+			'Iterations of\nMeta-Learning', # xlabel
 			'DSL Feature', # ylabel
 			layer_name,
 			first_layer, middle_layer, last_layer)
@@ -94,4 +94,4 @@ if __name__  == "__main__":
     layers = get_layers(len(features))
 
     plot_heatmap(data, iters, features, layers, minigame)
-    plt.savefig(minigame + ".png")
+    plt.savefig(minigame + "_heatmap.png")
