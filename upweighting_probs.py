@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def learn_probs(base_class_name, program_generation_step_size, num_programs,
-            iters = 20, num_layers = 2, epsilon = 1, analyze_improvement = False):
+            iters = 21, epsilon = 1, analyze_improvement = False):
     # initialize blank probability dictionary
     object_types = get_object_types(base_class_name)
     grammar_regex = get_grammar_regex(object_types)
@@ -25,42 +25,45 @@ def learn_probs(base_class_name, program_generation_step_size, num_programs,
     print("Initial probs:", probs)
 
     # train initial policy
-    policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
+    min_num_programs = num_programs
+    policy = train(base_class_name, range(11), program_generation_step_size, min_num_programs, 5, 25, probs)
     if analyze_improvement:
         improvement_results = [test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)]
+        min_num_programs = improvement_results[-1][0][-1] + program_generation_step_size
 
+    curr_layer = 0
     for i in range(iters):
         print("RUNNING META-LEARNING ITERATION", i + 1, "OF", iters)
 
         # update probabilities
-        old_is = random.sample(range(len(probs_dicts)), k = num_layers)
-        old_probs_dicts = {old_i: {k: v for k, v in probs_dicts[old_i].items()} for old_i in old_is}
-        new_probs_dicts = [probs_dicts[old_i] for old_i in old_is]
-        for probs_dict in new_probs_dicts:
-            new_probs_dict = update_probs(policy.plps, policy.probs, probs_dict)
-            new_probs_dict = adjust(probs_dict, new_probs_dict, epsilon = epsilon)
-            probs_dict.update(new_probs_dict)
+        old_probs_dict = {k: v for k, v in probs_dicts[curr_layer].items()}
+        new_probs_dict = probs_dicts[curr_layer]
+        new_probs_dict = update_probs(policy.plps, policy.probs, old_probs_dict)
+        new_probs_dict = adjust(old_probs_dict, new_probs_dict, epsilon = epsilon)
+        probs_dicts[curr_layer].update(new_probs_dict)
         probs = {k[1]: v for d in probs_dicts for k, v in d.items()}
         print("Updated probs:", probs)
 
         # train a new policy with given probs
         old_policy = policy
-        policy = train(base_class_name, range(11), program_generation_step_size, num_programs, 5, 25, probs)
+        policy = train(base_class_name, range(11), program_generation_step_size, min_num_programs, 5, 25, probs)
         results = test(policy, base_class_name, record_videos = False)
         print("Test results:", results)
 
         # revert changes if learned policy failed
         if False in results:
-            print("Reverting", old_is)
-            for old_i in old_is:
-                probs_dicts[old_i].update(old_probs_dicts[old_i])
+            improvement_results += [([None], [0])]
+            print("Reverting", curr_layer)
+            probs_dicts[curr_layer].update(old_probs_dict)
+            probs = {k[1]: v for d in probs_dicts for k, v in d.items()}
             policy = old_policy
-            if analyze_improvement:
-                improvement_results += [([None], [0])]
-            continue
 
-        if analyze_improvement:
-            improvement_results += [test_num_programs(base_class_name, program_generation_step_size, num_programs, probs)]
+        # update minimum number of programs enumerated if learned policy succeeded
+        elif analyze_improvement:
+            improvement_results += [test_num_programs(base_class_name, program_generation_step_size, min_num_programs, probs)]
+            min_num_programs = improvement_results[-1][0][-1] + program_generation_step_size
+
+        curr_layer = (curr_layer + 1) % len(probs_dicts)
 
     if analyze_improvement:
         print("Improvement results:", improvement_results)
@@ -100,6 +103,7 @@ def plot_improvement(base_class_name, improvement_results):
     y = [res[0][-1] for res in improvement_results]
 
     plt.plot(x, y)
+    plt.scatter(x, y)
     plt.title('Meta-Learning Improvement for ' + base_class_name)
     plt.xlabel('Iterations of meta-learning')
     plt.ylabel('# features enumerated')
